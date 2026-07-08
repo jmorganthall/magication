@@ -4,4 +4,9 @@ Stands up perishable-observation capture (wait times, with schema stubs for
 offers/prices/DVC availability) before the application core exists.
 """
 
-__version__ = "0.0.1"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("magication-moat")
+except PackageNotFoundError:  # pragma: no cover - source checkout without install
+    __version__ = "0.0.0+unknown"

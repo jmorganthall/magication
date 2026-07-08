@@ -1,6 +1,6 @@
 [project]
 name = "magication-moat"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Phase 0 accumulation layer: day-0 wait-time poller + history tables (the moat)."
 requires-python = ">=3.11"
 dependencies = [
@@ -16,11 +16,18 @@ dev = ["pytest>=8.0"]
 moat-poll = "moat.scheduler:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Version is derived from git (tags + commit distance). Every commit on main gets
+# a unique PyPI-safe version, so the publish step never collides. `no-local-version`
+# strips the +<hash> local segment that PyPI rejects.
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+fallback_version = "0.0.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
