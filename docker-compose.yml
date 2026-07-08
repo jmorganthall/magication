@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: moat
+      POSTGRES_PASSWORD: moat
+      POSTGRES_DB: moat
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Present from day 0 for later phases (ephemeral TTL cache, PRD §7.2).
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  # Open-Meteo self-host (PRD §8.1) — the image serves the API; historical
+  # reanalysis data must be synced separately per Open-Meteo docs. Profile-gated
+  # so `docker compose up` stays lean until weather ingestion (Phase 2).
+  open-meteo:
+    image: ghcr.io/open-meteo/open-meteo
+    command: ["--port", "8080"]
+    ports: ["8080:8080"]
+    profiles: ["weather"]
+
+  poller:
+    build: .
+    command: ["moat-poll"]
+    environment:
+      DATABASE_URL: postgresql://moat:moat@postgres:5432/moat
+      POLL_INTERVAL_SECONDS: "300"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
