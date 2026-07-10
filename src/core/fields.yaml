@@ -1,0 +1,102 @@
+# The Field Registry (PRD §6) — every human-fillable field as a first-class entity.
+# provenance:  USER_INPUT (settable via operations) | DERIVED (engine) | FETCHED (adapter)
+# depends_on:  inputs that form the recompute DAG (DERIVED/FETCHED only)
+
+- path: trip.window.month
+  type: enum
+  domain: [january, february, march, april, may, june, july, august, september, october, november, december]
+  provenance: USER_INPUT
+  aliases: ["month", "travel month", "when"]
+  description: "Target month for the trip window."
+  maturity_level: L0
+  cost_to_obtain: free_shared
+
+- path: trip.party.adults
+  type: int_range
+  domain: [1, 12]
+  provenance: USER_INPUT
+  aliases: ["adults", "grown ups", "number of adults"]
+  description: "Adults in the party (drives ticket pricing)."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: trip.party.children
+  type: int_range
+  domain: [0, 12]
+  provenance: USER_INPUT
+  aliases: ["kids", "children", "number of kids"]
+  description: "Children in the party."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: trip.park_days
+  type: int_range
+  domain: [1, 14]
+  provenance: USER_INPUT
+  aliases: ["park days", "days in parks", "number of park days"]
+  description: "How many days the party will spend in the parks."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: trip.addons.lightning_lane.tier
+  type: enum
+  domain: [none, multi_pass, single_pass, premier]
+  provenance: USER_INPUT
+  aliases: ["Lightning Lane Premier", "LL Premier", "lightning lane", "the premium skip-the-line thing", "ll tier"]
+  description: "Which paid Lightning Lane product the party intends to buy."
+  maturity_level: L2
+  cost_to_obtain: free_shared
+
+- path: trip.addons.lightning_lane.price_per_day
+  type: currency
+  provenance: FETCHED
+  depends_on: [trip.addons.lightning_lane.tier]
+  aliases: ["lightning lane price", "ll price per day"]
+  description: "Per-guest per-day Lightning Lane price. Directional at L1 (rate card), live at L2."
+  maturity_level: L2
+  cost_to_obtain: metered
+
+- path: trip.addons.lightning_lane.estimated_cost
+  type: currency
+  provenance: DERIVED
+  depends_on: [trip.addons.lightning_lane.price_per_day, trip.park_days, trip.party.adults, trip.party.children]
+  aliases: ["lightning lane cost", "ll cost", "ll estimate"]
+  description: "Estimated total Lightning Lane spend for the party."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: trip.tickets.estimated_cost
+  type: currency
+  provenance: DERIVED
+  depends_on: [trip.park_days, trip.party.adults, trip.party.children]
+  aliases: ["ticket cost", "tickets", "ticket estimate"]
+  description: "Estimated total ticket spend for the party."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: weights.cost
+  type: number
+  domain: [0, 1]
+  provenance: USER_INPUT
+  aliases: ["cost weight", "price weight", "how much price matters"]
+  description: "MCDA weight for the cost objective."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: weights.crowd
+  type: number
+  domain: [0, 1]
+  provenance: USER_INPUT
+  aliases: ["crowd weight", "how much crowds matter"]
+  description: "MCDA weight for the crowd objective."
+  maturity_level: L1
+  cost_to_obtain: free_shared
+
+- path: weights.weather
+  type: number
+  domain: [0, 1]
+  provenance: USER_INPUT
+  aliases: ["weather weight", "how much weather matters"]
+  description: "MCDA weight for the weather objective."
+  maturity_level: L1
+  cost_to_obtain: free_shared

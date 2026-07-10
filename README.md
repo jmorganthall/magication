@@ -54,8 +54,8 @@ Phases are boundaries — each independently shippable (PRD §17).
 
 | Phase | Focus | State |
 |---|---|---|
-| **0 — Accumulate** | Day-0 wait-time poller + history tables + Open-Meteo self-host. *Start the moat before the app exists.* | 🟡 in progress |
-| **1 — Deterministic spine** | Domain core, Field Registry, MCDA scoring, recompute cascade, completeness validator, Trip document + operation log. | ⚪ planned |
+| **0 — Accumulate** | Day-0 wait-time poller + history tables + Open-Meteo self-host. *Start the moat before the app exists.* | ✅ shipped |
+| **1 — Deterministic spine** | Domain core, Field Registry, MCDA scoring, recompute cascade, completeness validator, Trip document + operation log. | 🟡 in progress |
 | **2 — Data adapters + caching** | Weather, crowd (wait proxy), tickets; cache/meter/route decorators; cache-key discipline + lead-time TTL. | ⚪ planned |
 | **3 — Conversational layer** | Chat-as-operation-emitter, simulate/commit/branch, edit-or-direct rule, form + chat as dual drivers. | ⚪ planned |
 | **4 — L2 paywall + metered adapters** | DVC (personal tier), flights, live rates/offers; metered-action warnings; rate-card CSVs. | ⚪ planned |
@@ -79,15 +79,20 @@ models → better product.
 PRD.md                     # the full product requirements document (source of truth)
 implementation_plan.md     # active phase plan
 db/schema.sql              # history tables (Phase 0) — append-only, tenant-free keys
-src/moat/
-  config.py                # env-driven config
-  models.py                # WaitObservation value object
+db/migrations/             # forced-RLS tenancy floor (Phase 1)
+inputs/rate_card.csv       # editable rate constants (a rate change is a data edit)
+src/moat/                  # Phase 0 — the accumulation layer (ingestion)
   ports/wait_times.py      # WaitTimesSource + WaitTimeRepository (the hexagonal boundary)
   adapters/queue_times.py  # Queue-Times adapter (fail-loud parsing)
-  db.py                    # Postgres repository (append-only, idempotent)
   ingest/wait_poller.py    # poll_once — error isolation + backoff retry
   scheduler.py             # APScheduler worker entrypoint (`moat-poll`)
-tests/                     # parsing, fail-loud, error isolation (no network, no DB)
+src/core/                  # Phase 1 — the pure deterministic domain core
+  registry.py, fields.yaml # the Field Registry (keystone): aliases, validation, the DAG
+  trip.py, operations.py   # Trip document + operation model/log (chat emits ops, never edits)
+  cascade.py               # recompute cascade + completeness validator (fail-loud, §6.3)
+  mcda.py, solve.py        # MCDA scoring (weighted-sum/TOPSIS/Pareto) + solve engine
+  decision.py              # the structured decision object (never prose)
+tests/                     # Phase 0 + core suites (no network, no DB)
 Dockerfile, docker-compose.yml, .env.example   # the deployment template
 ```
 

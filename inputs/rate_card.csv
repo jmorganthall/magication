@@ -1,0 +1,7 @@
+key,value
+ticket_base_per_day,65.00
+ticket_fixed_overhead,392.36
+ll_price_per_day_none,0.00
+ll_price_per_day_multi_pass,35.00
+ll_price_per_day_single_pass,25.00
+ll_price_per_day_premier,449.00
