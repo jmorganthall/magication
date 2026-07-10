@@ -1,0 +1,76 @@
+name: magication
+
+# All settings default sensibly, so `docker compose up` works with zero config.
+# Override anything via a local .env (see .env.example).
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-moat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moat}
+      POSTGRES_DB: ${POSTGRES_DB:-moat}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Schema loads once, on first init of an empty data volume.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moat} -d ${POSTGRES_DB:-moat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    <<: *restart
+    networks: [moat]
+
+  # Ephemeral TTL cache (PRD §7.2). Present from day 0 for later phases.
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *restart
+    networks: [moat]
+
+  # Open-Meteo self-host (PRD §8.1). The image serves the API; historical
+  # reanalysis data is synced separately per Open-Meteo docs. Profile-gated so
+  # the default `docker compose up` stays lean until weather ingestion (Phase 2).
+  open-meteo:
+    image: ghcr.io/open-meteo/open-meteo
+    command: ["--port", "8080"]
+    ports: ["${OPEN_METEO_PORT:-8080}:8080"]
+    profiles: ["weather"]
+    <<: *restart
+    networks: [moat]
+
+  # The day-0 wait-time poller — first inhabitant of the ingestion layer.
+  poller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: magication-moat:local
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-moat}:${POSTGRES_PASSWORD:-moat}@postgres:5432/${POSTGRES_DB:-moat}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-300}
+      QUEUE_TIMES_PARK_IDS: ${QUEUE_TIMES_PARK_IDS:-}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-15}
+      MAX_RETRIES: ${MAX_RETRIES:-4}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    <<: *restart
+    networks: [moat]
+
+networks:
+  moat:
+    driver: bridge
+
+volumes:
+  pgdata:
