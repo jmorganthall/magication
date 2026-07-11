@@ -111,6 +111,13 @@ This complements two other artifacts:
 - **Invariants:** no AI anywhere in scoring; re-ranking on new weights uses cached facts, **no
   re-fetch** (CQRS, §4.6).
 
+### SolveEngine
+- **Kind:** service · **Home:** `solve.py`
+- **What:** the one flexible-window optimizer (§4.4) — hard dates are a search space of one,
+  duration-only widens the window, budget/event anchors are filters. Ranks candidates via MCDA and
+  emits a `DecisionObject`.
+- **Invariants:** deterministic; consumes cached `CandidateFacts`, so re-ranking never re-fetches.
+
 ---
 
 ## B. Enums & ladders — ✅ Phase 1
