@@ -54,8 +54,8 @@ Phases are boundaries — each independently shippable (PRD §17).
 
 | Phase | Focus | State |
 |---|---|---|
-| **0 — Accumulate** | Day-0 wait-time poller + history tables + Open-Meteo self-host. *Start the moat before the app exists.* | 🟡 in progress |
-| **1 — Deterministic spine** | Domain core, Field Registry, MCDA scoring, recompute cascade, completeness validator, Trip document + operation log. | ⚪ planned |
+| **0 — Accumulate** | Day-0 wait-time poller + history tables + Open-Meteo self-host. *Start the moat before the app exists.* | ✅ shipped |
+| **1 — Deterministic spine** | Domain core, Field Registry, MCDA scoring, recompute cascade, completeness validator, Trip document + operation log. | 🟡 in progress |
 | **2 — Data adapters + caching** | Weather, crowd (wait proxy), tickets; cache/meter/route decorators; cache-key discipline + lead-time TTL. | ⚪ planned |
 | **3 — Conversational layer** | Chat-as-operation-emitter, simulate/commit/branch, edit-or-direct rule, form + chat as dual drivers. | ⚪ planned |
 | **4 — L2 paywall + metered adapters** | DVC (personal tier), flights, live rates/offers; metered-action warnings; rate-card CSVs. | ⚪ planned |
@@ -79,15 +79,20 @@ models → better product.
 PRD.md                     # the full product requirements document (source of truth)
 implementation_plan.md     # active phase plan
 db/schema.sql              # history tables (Phase 0) — append-only, tenant-free keys
-src/moat/
-  config.py                # env-driven config
-  models.py                # WaitObservation value object
+db/migrations/             # forced-RLS tenancy floor (Phase 1)
+inputs/rate_card.csv       # editable rate constants (a rate change is a data edit)
+src/moat/                  # Phase 0 — the accumulation layer (ingestion)
   ports/wait_times.py      # WaitTimesSource + WaitTimeRepository (the hexagonal boundary)
   adapters/queue_times.py  # Queue-Times adapter (fail-loud parsing)
-  db.py                    # Postgres repository (append-only, idempotent)
   ingest/wait_poller.py    # poll_once — error isolation + backoff retry
   scheduler.py             # APScheduler worker entrypoint (`moat-poll`)
-tests/                     # parsing, fail-loud, error isolation (no network, no DB)
+src/core/                  # Phase 1 — the pure deterministic domain core
+  registry.py, fields.yaml # the Field Registry (keystone): aliases, validation, the DAG
+  trip.py, operations.py   # Trip document + operation model/log (chat emits ops, never edits)
+  cascade.py               # recompute cascade + completeness validator (fail-loud, §6.3)
+  mcda.py, solve.py        # MCDA scoring (weighted-sum/TOPSIS/Pareto) + solve engine
+  decision.py              # the structured decision object (never prose)
+tests/                     # Phase 0 + core suites (no network, no DB)
 Dockerfile, docker-compose.yml, .env.example   # the deployment template
 ```
 
@@ -106,14 +111,55 @@ Add the self-hosted weather service when you need it:
 docker compose --profile weather up
 ```
 
-See [`docs/DOCKER.md`](./docs/DOCKER.md) for the full template reference (services, env vars, ops).
+The stack ([`docker-compose.yml`](./docker-compose.yml)) — every value defaults, so `up` works
+with no `.env`, and everything is overridable:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-moat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moat}
+      POSTGRES_DB: ${POSTGRES_DB:-moat}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro   # loads once
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moat} -d ${POSTGRES_DB:-moat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:                       # ephemeral TTL cache (PRD §7.2)
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+
+  poller:                      # the day-0 wait-time poller (`moat-poll`)
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-moat}:${POSTGRES_PASSWORD:-moat}@postgres:5432/${POSTGRES_DB:-moat}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy   # waits for the healthcheck, not just container start
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+```
+
+The full file adds a profile-gated Open-Meteo service, a bridge network, and Redis healthchecks —
+see [`docs/DOCKER.md`](./docs/DOCKER.md) for the complete template reference (services, env vars, ops).
 
 ### Develop & test
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
-pytest                    # 5 tests, no network and no DB required (MockTransport + fakes)
+pytest                    # 34 tests, no network and no DB required (MockTransport + fakes)
 ```
 
 ## Configuration

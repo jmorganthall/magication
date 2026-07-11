@@ -7,6 +7,7 @@ dependencies = [
     "httpx>=0.27",
     "psycopg[binary]>=3.1",
     "apscheduler>=3.10",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +22,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+core = ["*.yaml"]
 
 # Version is derived from git (tags + commit distance). Every commit on main gets
 # a unique PyPI-safe version, so the publish step never collides. `no-local-version`
