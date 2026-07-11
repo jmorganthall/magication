@@ -111,14 +111,55 @@ Add the self-hosted weather service when you need it:
 docker compose --profile weather up
 ```
 
-See [`docs/DOCKER.md`](./docs/DOCKER.md) for the full template reference (services, env vars, ops).
+The stack ([`docker-compose.yml`](./docker-compose.yml)) — every value defaults, so `up` works
+with no `.env`, and everything is overridable:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-moat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moat}
+      POSTGRES_DB: ${POSTGRES_DB:-moat}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro   # loads once
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moat} -d ${POSTGRES_DB:-moat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:                       # ephemeral TTL cache (PRD §7.2)
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+
+  poller:                      # the day-0 wait-time poller (`moat-poll`)
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-moat}:${POSTGRES_PASSWORD:-moat}@postgres:5432/${POSTGRES_DB:-moat}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy   # waits for the healthcheck, not just container start
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+```
+
+The full file adds a profile-gated Open-Meteo service, a bridge network, and Redis healthchecks —
+see [`docs/DOCKER.md`](./docs/DOCKER.md) for the complete template reference (services, env vars, ops).
 
 ### Develop & test
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
-pytest                    # 5 tests, no network and no DB required (MockTransport + fakes)
+pytest                    # 34 tests, no network and no DB required (MockTransport + fakes)
 ```
 
 ## Configuration
