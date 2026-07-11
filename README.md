@@ -9,8 +9,9 @@ hoc process into a **deterministic decision model** with a **conversational laye
 manipulate it** ("but what if we changed to January?" / "what would Lightning Lane Premier cost?").
 It works *backward* from a defensible ranked recommendation instead of forward from a blank page.
 
-> **Status:** pre-alpha · **Phase 0 (Accumulate)** in progress · see the [roadmap](#roadmap).
-> The full architecture lives in **[`PRD.md`](./PRD.md)** — this README is the short version.
+> **Status:** pre-alpha · Phase 0 shipped · **Phase 1 (Deterministic spine)** in progress · see the [roadmap](#roadmap).
+> The full architecture lives in **[`PRD.md`](./PRD.md)**; the catalog of first-class objects and their
+> invariants lives in **[`DATAMAP.md`](./DATAMAP.md)**. This README is the short version.
 
 ---
 
@@ -76,7 +77,8 @@ models → better product.
 ## Repository layout
 
 ```
-PRD.md                     # the full product requirements document (source of truth)
+PRD.md                     # the full product requirements document (why — source of truth)
+DATAMAP.md                 # catalog of first-class objects (what — their invariants & requirements)
 implementation_plan.md     # active phase plan
 db/schema.sql              # history tables (Phase 0) — append-only, tenant-free keys
 db/migrations/             # forced-RLS tenancy floor (Phase 1)
